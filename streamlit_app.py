@@ -1,64 +1,67 @@
 import streamlit as st
-import openai
+import requests
 
-# Load API key from secrets.toml
-openai.api_key = st.secrets["OPENROUTER_API_KEY"]
-openai.api_base = "https://openrouter.ai/api/v1"
+# App Header
+st.set_page_config(page_title="🔬 Histopathology Report Generator", layout="wide")
+st.title("🔬 Histopathology Report Generator Developed by Shehroz Khan Rind")
 
-st.set_page_config(page_title="Histopathology Report Generator", layout="centered")
+# Sidebar
+st.sidebar.header("📝 Enter Patient Information")
 
-st.markdown("<h1 style='text-align: center;'>🔬 Histopathology Report Generator</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center;'>Developed by Shehroz Khan Rind</h4>", unsafe_allow_html=True)
-st.markdown("---")
+# Patient Inputs
+name = st.sidebar.text_input("Patient Name")
+age = st.sidebar.text_input("Age")
+sex = st.sidebar.selectbox("Sex", ["Male", "Female", "Other"])
+specimen = st.sidebar.text_input("Specimen Details (e.g., Biopsy type)")
+clinical_history = st.text_area("Clinical History")
+gross_description = st.text_area("Gross Description")
+microscopic_findings = st.text_area("Microscopic Findings")
 
-# Input fields
-with st.form("report_form"):
-    st.subheader("📄 Patient Information")
-    name = st.text_input("Patient Name")
-    age = st.text_input("Age")
-    sex = st.selectbox("Sex", ["Male", "Female", "Other"])
-
-    st.subheader("🧪 Specimen Details")
-    specimen = st.text_area("Type and Source of Specimen")
-
-    st.subheader("🩺 Clinical History")
-    clinical_history = st.text_area("Clinical History")
-
-    st.subheader("🧬 Gross Description")
-    gross_description = st.text_area("Gross Description")
-
-    st.subheader("🔬 Microscopic Findings")
-    microscopic_findings = st.text_area("Microscopic Findings")
-
-    submit = st.form_submit_button("🧾 Generate Report")
-
-if submit:
-    if not all([name, age, sex, specimen, clinical_history, gross_description, microscopic_findings]):
-        st.error("❌ Please fill all the fields.")
-    else:
+# Generate Button
+if st.button("🧾 Generate Report"):
+    if all([name, age, sex, specimen, clinical_history, gross_description, microscopic_findings]):
         with st.spinner("Generating report..."):
-
-            prompt = f"""
-You are an expert histopathologist. Generate a detailed histopathology report using the following information:
+            try:
+                prompt = f"""
+You are a senior histopathologist. Based on the following inputs, generate a professional histopathology report in markdown format.
 
 Patient Name: {name}
 Age: {age}
 Sex: {sex}
-
-Specimen: {specimen}
+Specimen Details: {specimen}
 Clinical History: {clinical_history}
 Gross Description: {gross_description}
 Microscopic Findings: {microscopic_findings}
 
-Provide the final report with a clear diagnosis (in bullet points if possible), and write in a formal medical tone.
+Include diagnosis as bullet points.
 """
 
-            try:
-                response = openai.ChatCompletion.create(
-                    model="mistralai/mistral-7b-instruct:free",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.7,
-                )
+                headers = {
+                    "Authorization": f"Bearer {st.secrets['OPENROUTER_API_KEY']}",
+                    "Content-Type": "application/json"
+                }
 
-                report = response.choices[0].message.content.strip()
-                st.success("✅ Report generated successfully!")
+                data = {
+                    "model": "mistralai/mistral-7b-instruct:free",
+                    "messages": [
+                        {"role": "system", "content": "You are a professional histopathology report generator."},
+                        {"role": "user", "content": prompt}
+                    ]
+                }
+
+                response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+
+                if response.status_code == 200:
+                    result = response.json()
+                    report = result['choices'][0]['message']['content']
+                    st.markdown("### 🧠 Generated Report")
+                    st.markdown(report)
+                    st.success("✅ Report generated successfully!")
+                else:
+                    st.error("❌ Could not generate the report. Please check input or try again later.")
+                    st.json(response.json())
+
+            except Exception as e:
+                st.error(f"❌ Could not generate the report.\n\n**Error:** {e}")
+    else:
+        st.warning("⚠️ Please fill in all the required fields before generating the report.")
